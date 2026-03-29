@@ -2,17 +2,20 @@
 
 import { CATEGORY_OPTIONS, getCategoryMeta, getRatingTone } from "../lib/constants";
 
-export default function SpotCard({ spot, featured = false }) {
+export default function SpotCard({ spot, featured = false, onOpen }) {
   const category = CATEGORY_OPTIONS.find((option) => option.value === spot.category);
   const categoryMeta = getCategoryMeta(category?.value || spot.category);
   const tone = getRatingTone(Number(spot.rating));
   const photo = spot.photo_url || "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80";
 
   return (
-    <article
+    <button
+      type="button"
+      aria-label={`Open ${spot.name}`}
+      onClick={onOpen}
       className={`group relative overflow-hidden rounded-[2rem] border border-white/10 bg-panel shadow-2xl ${
         featured ? "mb-4 min-h-[20rem] md:mb-6 md:min-h-[25rem]" : "mb-4 break-inside-avoid md:mb-5"
-      }`}
+      } block w-full text-left`}
     >
       <div className={`relative ${featured ? "min-h-[20rem] md:min-h-[25rem]" : "min-h-[16.5rem] sm:min-h-[18rem] md:min-h-[22rem]"}`}>
         <img
@@ -63,8 +66,13 @@ export default function SpotCard({ spot, featured = false }) {
               <p className="text-sm font-medium text-white">{spot.added_by}</p>
             </div>
           </div>
+
+          <div className="mt-3 flex items-center justify-between text-[11px] uppercase tracking-[0.18em] text-white/55 md:text-xs md:tracking-[0.22em]">
+            <span>Tap to expand</span>
+            <span>{spot.spot_comments?.length || 0} comments</span>
+          </div>
         </div>
       </div>
-    </article>
+    </button>
   );
 }

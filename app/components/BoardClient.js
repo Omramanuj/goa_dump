@@ -3,8 +3,11 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import FilterBar from "./FilterBar";
+import PhoneGate from "./PhoneGate";
 import SpotCard from "./SpotCard";
-import { FILTER_OPTIONS, PREVIEW_SPOTS } from "../lib/constants";
+import SpotDetailModal from "./SpotDetailModal";
+import { FILTER_OPTIONS } from "../lib/constants";
+import { getIdentity } from "../lib/identity";
 import { getSupabaseBrowserClient } from "../lib/supabase";
 
 function SkeletonCard({ featured = false }) {
@@ -19,13 +22,23 @@ function SkeletonCard({ featured = false }) {
   );
 }
 
-export default function BoardClient() {
+export default function BoardClient({ allowedContactsJson }) {
   const [spots, setSpots] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedSort, setSelectedSort] = useState("newest");
   const [toastVisible, setToastVisible] = useState(false);
+  const [selectedSpotId, setSelectedSpotId] = useState(null);
+  const [identity, setIdentity] = useState(null);
+  const [isPhoneGateOpen, setIsPhoneGateOpen] = useState(false);
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [commentError, setCommentError] = useState("");
+
+  useEffect(() => {
+    setIdentity(getIdentity());
+  }, []);
+
   useEffect(() => {
     if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("added") === "1") {
       setToastVisible(true);
@@ -51,7 +64,7 @@ export default function BoardClient() {
       const supabase = getSupabaseBrowserClient();
       const { data, error } = await supabase
         .from("spots")
-        .select("*")
+        .select("*, spot_comments(*)")
         .order("created_at", { ascending: false });
 
       if (ignore) {
@@ -75,10 +88,7 @@ export default function BoardClient() {
     };
   }, []);
 
-  const boardSpots = spots.length ? spots : PREVIEW_SPOTS;
-  const isPreviewBoard = !spots.length && !fetchError;
-
-  const visibleSpots = boardSpots
+  const visibleSpots = spots
     .filter((spot) => selectedCategory === "All" || spot.category === selectedCategory)
     .sort((left, right) => {
       if (selectedSort === "top-rated") {
@@ -103,8 +113,62 @@ export default function BoardClient() {
     remainingSpots = visibleSpots.filter((spot) => spot.id !== featuredSpot.id);
   }
 
+  const selectedSpot = spots.find((spot) => spot.id === selectedSpotId) || null;
+
+  async function handleCommentSubmit(spotId, body) {
+    if (!identity) {
+      setIsPhoneGateOpen(true);
+      return false;
+    }
+
+    setIsSubmittingComment(true);
+    setCommentError("");
+
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const { data, error } = await supabase
+        .from("spot_comments")
+        .insert({
+          spot_id: spotId,
+          body,
+          added_by: identity.name
+        })
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      setSpots((current) =>
+        current.map((spot) =>
+          spot.id === spotId
+            ? { ...spot, spot_comments: [...(spot.spot_comments || []), data] }
+            : spot
+        )
+      );
+
+      return true;
+    } catch (error) {
+      setCommentError(error.message || "Could not post comment.");
+      return false;
+    } finally {
+      setIsSubmittingComment(false);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-ink">
+      {isPhoneGateOpen ? (
+        <PhoneGate
+          allowedContactsJson={allowedContactsJson}
+          onSuccess={(nextIdentity) => {
+            setIdentity(nextIdentity);
+            setIsPhoneGateOpen(false);
+          }}
+        />
+      ) : null}
+
       <div className="mx-auto max-w-7xl px-3 pb-24 pt-3 sm:px-6 sm:pb-28 sm:pt-6 lg:px-8">
         <section>
           <FilterBar
@@ -114,11 +178,6 @@ export default function BoardClient() {
             selectedSort={selectedSort}
             onSortChange={setSelectedSort}
           />
-          {isPreviewBoard ? (
-            <p className="mt-3 text-xs leading-5 text-smoke sm:mt-4 sm:text-sm">
-              Showing preview spots until the first real entries land. Add flow still requires a listed phone number.
-            </p>
-          ) : null}
         </section>
 
         {fetchError ? (
@@ -139,10 +198,12 @@ export default function BoardClient() {
             </>
           ) : visibleSpots.length ? (
             <>
-              {featuredSpot ? <SpotCard spot={featuredSpot} featured /> : null}
+              {featuredSpot ? (
+                <SpotCard spot={featuredSpot} featured onOpen={() => setSelectedSpotId(featuredSpot.id)} />
+              ) : null}
               <div className="columns-2 gap-3 md:columns-3 md:gap-5 xl:columns-4">
                 {remainingSpots.map((spot) => (
-                  <SpotCard key={spot.id} spot={spot} />
+                  <SpotCard key={spot.id} spot={spot} onOpen={() => setSelectedSpotId(spot.id)} />
                 ))}
               </div>
             </>
@@ -155,6 +216,18 @@ export default function BoardClient() {
             </div>
           )}
         </section>
+
+        <footer className="mt-10 pb-4 text-center text-xs text-white/45 sm:mt-14 sm:text-sm">
+          Made by{" "}
+          <a
+            href="https://omramanuj.site"
+            target="_blank"
+            rel="noreferrer"
+            className="text-white/70 underline decoration-white/20 underline-offset-4 transition hover:text-accent"
+          >
+            Om Ramanuj
+          </a>
+        </footer>
       </div>
 
       <Link
@@ -172,6 +245,27 @@ export default function BoardClient() {
       >
         Spot dropped! 🎉
       </div>
+
+      {selectedSpot ? (
+        <>
+          <SpotDetailModal
+            spot={selectedSpot}
+            identity={identity}
+            onClose={() => {
+              setSelectedSpotId(null);
+              setCommentError("");
+            }}
+            onRequireIdentity={() => setIsPhoneGateOpen(true)}
+            onSubmitComment={handleCommentSubmit}
+            isSubmittingComment={isSubmittingComment}
+          />
+          {commentError ? (
+            <div className="fixed bottom-20 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-2xl border border-accent/30 bg-[#241714] px-4 py-3 text-sm text-accent shadow-2xl">
+              {commentError}
+            </div>
+          ) : null}
+        </>
+      ) : null}
     </main>
   );
 }

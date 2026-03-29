@@ -48,7 +48,7 @@ export default function PhoneGate({ allowedContactsJson, onSuccess }) {
               autoComplete="tel"
               value={phone}
               onChange={(event) => {
-                setPhone(event.target.value.replace(/\D/g, "").slice(0, 10));
+                setPhone(event.target.value.replace(/\D/g, "").slice(0, 12));
                 if (error) {
                   setError("");
                 }
