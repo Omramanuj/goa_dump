@@ -34,19 +34,27 @@ export default function BoardClient({ allowedContactsJson }) {
   const [isPhoneGateOpen, setIsPhoneGateOpen] = useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [commentError, setCommentError] = useState("");
+  const [toastMessage, setToastMessage] = useState("");
 
   useEffect(() => {
     setIdentity(getIdentity());
   }, []);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("added") === "1") {
-      setToastVisible(true);
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("added") === "1") {
+        setToastMessage(
+          params.get("photo") === "failed" ? "Spot dropped. Photo skipped." : "Spot dropped! 🎉"
+        );
+        setToastVisible(true);
+      }
 
       const timeout = window.setTimeout(() => {
         setToastVisible(false);
         const url = new URL(window.location.href);
         url.searchParams.delete("added");
+        url.searchParams.delete("photo");
         window.history.replaceState({}, "", url.pathname + url.search);
       }, 3200);
 
@@ -243,7 +251,7 @@ export default function BoardClient({ allowedContactsJson }) {
           toastVisible ? "translate-y-0 opacity-100" : "-translate-y-3 opacity-0"
         }`}
       >
-        Spot dropped! 🎉
+        {toastMessage}
       </div>
 
       {selectedSpot ? (

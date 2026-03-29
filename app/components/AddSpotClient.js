@@ -27,6 +27,55 @@ export default function AddSpotClient({ allowedContactsJson }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  async function uploadPhotoWithFallbacks(supabase, file) {
+    const uploadCandidates = [];
+
+    try {
+      const compressed = await imageCompression(file, {
+        maxSizeMB: 1,
+        maxWidthOrHeight: 1920,
+        useWebWorker: false
+      });
+
+      uploadCandidates.push(compressed);
+    } catch {
+      // Fall through to original file upload below.
+    }
+
+    if (!uploadCandidates.length || uploadCandidates[0] !== file) {
+      uploadCandidates.push(file);
+    }
+
+    const safeFileName = file.name.replace(/\s+/g, "-").replace(/[^\w.-]/g, "");
+    const storagePath = `spots/${crypto.randomUUID()}-${safeFileName || "photo.jpg"}`;
+    let lastError = null;
+
+    for (const candidate of uploadCandidates) {
+      const { error: uploadError } = await supabase.storage
+        .from("spot-photos")
+        .upload(storagePath, candidate, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: candidate.type || file.type || "image/jpeg"
+        });
+
+      if (!uploadError) {
+        return {
+          publicUrl: supabase.storage.from("spot-photos").getPublicUrl(storagePath).data.publicUrl,
+          skipped: false
+        };
+      }
+
+      lastError = uploadError;
+    }
+
+    return {
+      publicUrl: null,
+      skipped: true,
+      error: lastError
+    };
+  }
+
   useEffect(() => {
     setIdentityState(getIdentity());
   }, []);
@@ -98,30 +147,12 @@ export default function AddSpotClient({ allowedContactsJson }) {
     try {
       const supabase = getSupabaseBrowserClient();
       let photoUrl = null;
+      let photoUploadSkipped = false;
 
       if (selectedFile) {
-        const compressed = await imageCompression(selectedFile, {
-          maxSizeMB: 1,
-          maxWidthOrHeight: 1920,
-          useWebWorker: true
-        });
-
-        const safeFileName = selectedFile.name.replace(/\s+/g, "-").replace(/[^\w.-]/g, "");
-        const storagePath = `spots/${crypto.randomUUID()}-${safeFileName || "photo.jpg"}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from("spot-photos")
-          .upload(storagePath, compressed, {
-            cacheControl: "3600",
-            upsert: false,
-            contentType: compressed.type || selectedFile.type || "image/jpeg"
-          });
-
-        if (uploadError) {
-          throw uploadError;
-        }
-
-        photoUrl = supabase.storage.from("spot-photos").getPublicUrl(storagePath).data.publicUrl;
+        const uploadResult = await uploadPhotoWithFallbacks(supabase, selectedFile);
+        photoUrl = uploadResult.publicUrl;
+        photoUploadSkipped = uploadResult.skipped;
       }
 
       const { error: insertError } = await supabase.from("spots").insert({
@@ -138,7 +169,7 @@ export default function AddSpotClient({ allowedContactsJson }) {
         throw insertError;
       }
 
-      router.push("/?added=1");
+      router.push(photoUploadSkipped ? "/?added=1&photo=failed" : "/?added=1");
     } catch (submitError) {
       setError(submitError.message || "Could not save this spot.");
     } finally {
@@ -327,8 +358,7 @@ export default function AddSpotClient({ allowedContactsJson }) {
 
             {error ? <p className="text-sm text-accent">{error}</p> : null}
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-smoke">Uploads go to Supabase Storage at <code>spots/uuid-filename</code>.</p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
               <button
                 type="submit"
                 disabled={isSubmitting}
