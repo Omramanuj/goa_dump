@@ -63,6 +63,71 @@ export default function BoardClient({ allowedContactsJson }) {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const spotIdFromUrl = params.get("spot");
+
+    if (spotIdFromUrl) {
+      setSelectedSpotId(spotIdFromUrl);
+    }
+
+    function handlePopState() {
+      const nextParams = new URLSearchParams(window.location.search);
+      setSelectedSpotId(nextParams.get("spot"));
+      setCommentError("");
+    }
+
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    const previousTouchAction = document.body.style.touchAction;
+
+    if (selectedSpotId) {
+      document.body.style.overflow = "hidden";
+      document.body.style.touchAction = "none";
+    } else {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.touchAction = previousTouchAction;
+    }
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.touchAction = previousTouchAction;
+    };
+  }, [selectedSpotId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !selectedSpotId) {
+      return;
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        closeSpot();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [selectedSpotId]);
+
+  useEffect(() => {
     let ignore = false;
 
     async function loadSpots() {
@@ -165,6 +230,41 @@ export default function BoardClient({ allowedContactsJson }) {
     }
   }
 
+  function openSpot(spotId) {
+    setSelectedSpotId(spotId);
+    setCommentError("");
+
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("spot") === spotId) {
+      return;
+    }
+
+    url.searchParams.set("spot", spotId);
+    const method = selectedSpotId ? "replaceState" : "pushState";
+    window.history[method]({ spotId }, "", url.pathname + url.search);
+  }
+
+  function closeSpot() {
+    setSelectedSpotId(null);
+    setCommentError("");
+
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("spot")) {
+      return;
+    }
+
+    url.searchParams.delete("spot");
+    window.history.replaceState({}, "", url.pathname + url.search);
+  }
+
   return (
     <main className="min-h-screen bg-ink">
       {isPhoneGateOpen ? (
@@ -207,11 +307,11 @@ export default function BoardClient({ allowedContactsJson }) {
           ) : visibleSpots.length ? (
             <>
               {featuredSpot ? (
-                <SpotCard spot={featuredSpot} featured onOpen={() => setSelectedSpotId(featuredSpot.id)} />
+                <SpotCard spot={featuredSpot} featured onOpen={() => openSpot(featuredSpot.id)} />
               ) : null}
               <div className="columns-2 gap-3 md:columns-3 md:gap-5 xl:columns-4">
                 {remainingSpots.map((spot) => (
-                  <SpotCard key={spot.id} spot={spot} onOpen={() => setSelectedSpotId(spot.id)} />
+                  <SpotCard key={spot.id} spot={spot} onOpen={() => openSpot(spot.id)} />
                 ))}
               </div>
             </>
@@ -259,10 +359,7 @@ export default function BoardClient({ allowedContactsJson }) {
           <SpotDetailModal
             spot={selectedSpot}
             identity={identity}
-            onClose={() => {
-              setSelectedSpotId(null);
-              setCommentError("");
-            }}
+            onClose={closeSpot}
             onRequireIdentity={() => setIsPhoneGateOpen(true)}
             onSubmitComment={handleCommentSubmit}
             isSubmittingComment={isSubmittingComment}

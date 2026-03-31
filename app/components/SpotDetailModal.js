@@ -55,9 +55,16 @@ export default function SpotDetailModal({
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/80 p-0 backdrop-blur-md sm:items-center sm:p-4">
-      <div className="flex h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-t-[2rem] border border-white/10 bg-[#120f0d] sm:h-auto sm:max-h-[90vh] sm:rounded-[2rem]">
+    <div
+      className="fixed inset-0 z-40 flex items-end justify-center bg-black/80 p-0 backdrop-blur-md sm:items-center sm:p-4"
+      onClick={onClose}
+    >
+      <div
+        className="flex h-[100dvh] w-full max-w-5xl flex-col overflow-hidden rounded-none border-y border-white/10 bg-[#120f0d] sm:h-auto sm:max-h-[90vh] sm:rounded-[2rem] sm:border"
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="relative min-h-[18rem] sm:min-h-[24rem]">
+          <div className="absolute left-1/2 top-3 z-20 h-1.5 w-14 -translate-x-1/2 rounded-full bg-white/30 sm:hidden" />
           <img
             src={spot.photo_url || "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1600&q=80"}
             alt={spot.name}
@@ -65,15 +72,18 @@ export default function SpotDetailModal({
           />
           <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/10 to-black/80" />
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="absolute right-4 top-4 rounded-full border border-white/15 bg-black/45 px-4 py-2 text-sm text-white backdrop-blur"
-          >
-            Close
-          </button>
+          <div className="absolute inset-x-0 top-0 z-20 flex items-center p-4 pt-6 sm:p-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/50 px-4 py-2 text-sm font-medium text-white backdrop-blur transition hover:bg-black/60"
+            >
+              <span aria-hidden="true">←</span>
+              <span>Back to board</span>
+            </button>
+          </div>
 
-          <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-black/55 px-3 py-2 text-xs font-medium text-white backdrop-blur">
+          <div className="absolute left-4 top-20 flex items-center gap-2 rounded-full bg-black/55 px-3 py-2 text-xs font-medium text-white backdrop-blur sm:top-4">
             <span aria-hidden="true">{category.emoji}</span>
             <span>{category.label}</span>
           </div>
@@ -97,7 +107,7 @@ export default function SpotDetailModal({
         </div>
 
         <div className="grid flex-1 gap-0 overflow-hidden sm:grid-cols-[1.25fr_0.75fr]">
-          <div className="overflow-y-auto border-b border-white/10 p-4 sm:border-b-0 sm:border-r sm:p-6">
+          <div className="overflow-y-auto border-b border-white/10 p-4 pb-28 sm:border-b-0 sm:border-r sm:p-6">
             <div className="flex flex-wrap gap-2">
               {(spot.vibes || []).map((vibe) => (
                 <span
@@ -123,7 +133,7 @@ export default function SpotDetailModal({
             </div>
           </div>
 
-          <div className="flex min-h-0 flex-col overflow-hidden p-4 sm:p-6">
+          <div className="flex min-h-0 flex-col overflow-hidden p-4 pb-28 sm:p-6">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="font-display text-2xl text-white">Comments</h3>
               <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/65">
@@ -182,6 +192,18 @@ export default function SpotDetailModal({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+
+        <div className="absolute inset-x-0 bottom-0 z-20 border-t border-white/10 bg-[#120f0d]/95 p-4 backdrop-blur sm:hidden">
+          <div className="flex items-center">
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full rounded-full border border-white/15 bg-white/5 px-4 py-3 text-sm font-medium text-white"
+            >
+              Back to board
+            </button>
           </div>
         </div>
       </div>
